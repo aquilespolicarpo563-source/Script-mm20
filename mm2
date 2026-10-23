@@ -1,0 +1,407 @@
+-- ============================================
+-- MM2 PREMIUM HUB (Com Logs de Debug)
+-- ============================================
+
+-- LOG 1
+print("[LOG 1] Iniciando o script...")
+
+-- Carregando WindUI com proteção (pcall)
+local sucesso, WindUI = pcall(function()
+    return loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/download/1.6.41/main.lua"))()
+end)
+
+if not sucesso or not WindUI then
+    warn("[ERRO FATAL] Não foi possível carregar a biblioteca WindUI. Verifique sua internet.")
+    return
+end
+
+-- LOG 2
+print("[LOG 2] WindUI carregada com sucesso!")
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local CollectionService = game:GetService("CollectionService")
+local Lighting = game:GetService("Lighting")
+
+local flags = {
+    Triggerbot = false, AutoKill = false, Aimbot = false, SilentAim = false, ShowFov = false,
+    GunWalls = false, AutoGun = false, Noclip = false, Fly = false,
+    espNames = false, espBox = false, espChams = false, espRoleTags = false, coinEsp = false, fullbright = false
+}
+
+local aimFov = 120
+local lastShot = 0
+local snapping = false
+local flyBV, flyBG
+
+-- ============================================
+-- MENU WINDUI
+-- ============================================
+local Window = WindUI:CreateWindow({
+    Title = "MM2 Premium", 
+    Author = "Mobile Edition", 
+    Icon = "skull", 
+    Theme = "Dark", 
+    Folder = "MM2Premium"
+})
+
+-- LOG 3
+print("[LOG 3] Janela criada!")
+
+local TabCombat = Window:Tab({ Title = "Combat", Icon = "crosshair" })
+local TabVisuals = Window:Tab({ Title = "Visuals", Icon = "eye" })
+local TabPlayer = Window:Tab({ Title = "Player", Icon = "user" })
+local TabTeleport = Window:Tab({ Title = "Teleport", Icon = "map-pin" })
+local TabConfig = Window:Tab({ Title = "Config", Icon = "settings" })
+
+-- ============================================
+-- ABA COMBAT
+-- ============================================
+TabCombat:Section({ Title = "Triggerbot" })
+TabCombat:Toggle({ Title = "Ativar Triggerbot", Default = false, Callback = function(v) flags.Triggerbot = v end })
+TabCombat:Toggle({ Title = "Silent Aim", Default = false, Callback = function(v) flags.SilentAim = v end })
+TabCombat:Toggle({ Title = "Gun Through Walls", Default = false, Callback = function(v) flags.GunWalls = v end })
+TabCombat:Toggle({ Title = "Aimbot", Default = false, Callback = function(v) flags.Aimbot = v end })
+TabCombat:Slider({ Title = "FOV Size", Value = { Min = 40, Max = 400, Default = 120 }, Callback = function(v) aimFov = v end })
+
+TabCombat:Section({ Title = "Auto Actions" })
+TabCombat:Toggle({ Title = "Auto Kill (Murder/Xerife)", Default = false, Callback = function(v) flags.AutoKill = v end })
+TabCombat:Toggle({ Title = "Auto Grab Gun", Default = false, Callback = function(v) flags.AutoGun = v end })
+
+-- ============================================
+-- ABA VISUALS
+-- ============================================
+TabVisuals:Section({ Title = "Player ESP" })
+TabVisuals:Toggle({ Title = "Nametag ESP", Default = false, Callback = function(v) flags.espNames = v end })
+TabVisuals:Toggle({ Title = "Box ESP", Default = false, Callback = function(v) flags.espBox = v end })
+TabVisuals:Toggle({ Title = "Chams (Colorido)", Default = false, Callback = function(v) flags.espChams = v end })
+TabVisuals:Toggle({ Title = "Role Tags [M] [S] [I]", Default = false, Callback = function(v) flags.espRoleTags = v end })
+
+TabVisuals:Section({ Title = "Mundo" })
+TabVisuals:Toggle({ Title = "Coin ESP", Default = false, Callback = function(v) flags.coinEsp = v end })
+TabVisuals:Toggle({ Title = "Fullbright", Default = false, Callback = function(v) 
+    flags.fullbright = v
+    if v then pcall(function() Lighting.Brightness = 3; Lighting.ClockTime = 14; Lighting.Ambient = Color3.new(1,1,1) end)
+    else pcall(function() Lighting.Brightness = 1; Lighting.Ambient = Color3.new(0.5,0.5,0.5) end) end
+end })
+
+-- ============================================
+-- ABA PLAYER
+-- ============================================
+TabPlayer:Section({ Title = "Movimentação" })
+TabPlayer:Slider({ Title = "WalkSpeed", Value = { Min = 16, Max = 100, Default = 16 }, Callback = function(v)
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("Humanoid") then char.Humanoid.WalkSpeed = v end
+end })
+TabPlayer:Slider({ Title = "JumpPower", Value = { Min = 50, Max = 200, Default = 50 }, Callback = function(v)
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("Humanoid") then char.Humanoid.UseJumpPower = true; char.Humanoid.JumpPower = v end
+end })
+TabPlayer:Toggle({ Title = "Noclip", Default = false, Callback = function(v) flags.Noclip = v end })
+TabPlayer:Toggle({ Title = "Fly", Default = false, Callback = function(v) 
+    flags.Fly = v 
+    if v then
+        local char = LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            flyBV = Instance.new("BodyVelocity", hrp); flyBV.MaxForce = Vector3.new(1,1,1)*9e9; flyBV.Velocity = Vector3.zero
+            flyBG = Instance.new("BodyGyro", hrp); flyBG.MaxTorque = Vector3.new(1,1,1)*9e9; flyBG.P = 9e4; flyBG.CFrame = hrp.CFrame
+        end
+    else
+        if flyBV then flyBV:Destroy() end
+        if flyBG then flyBG:Destroy() end
+    end
+end })
+
+-- ============================================
+-- ABA TELEPORT
+-- ============================================
+TabTeleport:Section({ Title = "Ações Rápidas" })
+TabTeleport:Button({ Title = "Pegar Arma do Chão (Grab Gun)", Callback = function()
+    local droppedGun
+    for _, obj in ipairs(workspace:GetChildren()) do
+        if obj:IsA("BasePart") and obj.Name == "GunDrop" then droppedGun = obj break end
+    end
+    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if droppedGun and hrp then
+        if typeof(firetouchinterest) == "function" then
+            pcall(function() firetouchinterest(hrp, droppedGun, 0); firetouchinterest(hrp, droppedGun, 1) end)
+        end
+        if not (LocalPlayer.Character:FindFirstChild("Gun") or (LocalPlayer:FindFirstChild("Backpack") and LocalPlayer.Backpack:FindFirstChild("Gun"))) then
+            local original = hrp.CFrame
+            for i=1, 3 do 
+                hrp.CFrame = CFrame.new(droppedGun.Position) 
+                if typeof(firetouchinterest) == "function" then pcall(function() firetouchinterest(hrp, droppedGun, 0); firetouchinterest(hrp, droppedGun, 1) end) end
+                RunService.Heartbeat:Wait() 
+            end
+            hrp.CFrame = original
+        end
+    end
+end })
+TabTeleport:Button({ Title = "Teleportar para Moeda", Callback = function()
+    local map = CollectionService:GetTagged("CurrentMap")[1]
+    local c = map and map:FindFirstChild("CoinContainer") or workspace:FindFirstChild("CoinContainer", true)
+    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if c and hrp then
+        for _, coin in ipairs(c:GetChildren()) do
+            if coin:IsA("BasePart") and not coin:GetAttribute("Collected") then
+                hrp.CFrame = CFrame.new(coin.Position + Vector3.new(0, 3, 0))
+                break
+            end
+        end
+    end
+end })
+
+-- ============================================
+-- ABA CONFIG
+-- ============================================
+TabConfig:Button({ Title = "Destruir Script (Unload)", Callback = function()
+    Window:Destroy()
+    if flyBV then flyBV:Destroy() end
+    if flyBG then flyBG:Destroy() end
+end })
+
+-- ============================================
+-- SISTEMA MONO (ESP)
+-- ============================================
+local Mono = { plrs = {}, bodyCache = setmetatable({}, {__mode = "k"}), hasDrawing = false }
+local EspGui = Instance.new("ScreenGui", game:GetService("CoreGui"))
+EspGui.Name = "MonoESP"
+
+pcall(function() local tl = Drawing.new("Line"); tl:Remove(); Mono.hasDrawing = true end)
+Mono.newLine = function(t)
+    if Mono.hasDrawing then local l = Drawing.new("Line"); l.Thickness = t; l.Transparency = 1; l.Visible = false; return l end
+    return { Visible = false, Remove = function() end, From = Vector2.new(0,0), To = Vector2.new(0,0), Color = Color3.new(1,1,1) }
+end
+
+local function getHRP(ch) return ch and ch:FindFirstChild("HumanoidRootPart") end
+local function refreshPlrs() local ok, l = pcall(function() return Players:GetPlayers() end); if ok then Mono.plrs = l end end
+refreshPlrs()
+Players.PlayerAdded:Connect(refreshPlrs)
+Players.PlayerRemoving:Connect(function() task.defer(refreshPlrs) end)
+
+local function computeRole(plr)
+    local ch = plr.Character; local bp = plr:FindFirstChild("Backpack")
+    if ch then
+        if ch:FindFirstChild("Knife") or (bp and bp:FindFirstChild("Knife")) then return "Murderer"
+        elseif ch:FindFirstChild("Gun") or (bp and bp:FindFirstChild("Gun")) then return "Sheriff" end
+    end
+    return "Innocent"
+end
+local roleCache, cacheStamp = {}, 0
+local function roleOf(plr)
+    if os.clock() - cacheStamp > 0.1 then table.clear(roleCache); cacheStamp = os.clock() end
+    if roleCache[plr] == nil then roleCache[plr] = computeRole(plr) end
+    return roleCache[plr]
+end
+local function isGunRole(r) return r == "Sheriff" or r == "Hero" end
+local function alive(plr)
+    local ch = plr.Character; local h = ch and ch:FindFirstChild("Humanoid")
+    return ch and h and h.Health > 0 and getHRP(ch) ~= nil
+end
+
+local espStore = {}
+local function ensureEsp(plr)
+    if espStore[plr] then return espStore[plr] end
+    local e = {}
+    e.hl = Instance.new("Highlight", EspGui); e.hl.FillTransparency = 1; e.hl.OutlineTransparency = 0; e.hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop; e.hl.Enabled = false
+    e.bb = Instance.new("BillboardGui", EspGui); e.bb.Size = UDim2.fromOffset(180, 30); e.bb.AlwaysOnTop = true; e.bb.Enabled = false; e.bb.StudsOffsetWorldSpace = Vector3.new(0, 3, 0)
+    e.name = Instance.new("TextLabel", e.bb); e.name.BackgroundTransparency = 1; e.name.Size = UDim2.new(1, 0, 0.5, 0); e.name.Font = Enum.Font.GothamBold; e.name.TextSize = 13; e.name.TextStrokeTransparency = 0.5; e.name.TextXAlignment = Enum.TextXAlignment.Center
+    e.sub = Instance.new("TextLabel", e.bb); e.sub.BackgroundTransparency = 1; e.sub.Position = UDim2.new(0, 0, 0.5, 0); e.sub.Size = UDim2.new(1, 0, 0.5, 0); e.sub.Font = Enum.Font.Gotham; e.sub.TextSize = 11; e.sub.TextStrokeTransparency = 0.5; e.sub.TextXAlignment = Enum.TextXAlignment.Center
+    espStore[plr] = e
+    return e
+end
+local function espColor(role)
+    if role == "Murderer" then return Color3.fromRGB(255, 80, 80)
+    elseif isGunRole(role) then return Color3.fromRGB(90, 150, 255)
+    else return Color3.fromRGB(95, 225, 125) end
+end
+local function tagOf(role) return role == "Murderer" and "[M]" or isGunRole(role) and "[S]" or "[I]" end
+
+-- Thread ESP
+task.spawn(function()
+    while task.wait(0.1) do
+        if flags.espNames or flags.espChams then
+            for _, plr in ipairs(Mono.plrs) do
+                if plr ~= LocalPlayer and alive(plr) then
+                    local e = ensureEsp(plr)
+                    local role = roleOf(plr); local col = espColor(role)
+                    if flags.espChams then e.hl.Adornee = plr.Character; e.hl.OutlineColor = col; e.hl.FillColor = col; e.hl.Enabled = true else e.hl.Enabled = false end
+                    if flags.espNames then
+                        e.bb.Adornee = plr.Character:FindFirstChild("Head") or getHRP(plr.Character)
+                        local dist = math.floor((getHRP(plr.Character).Position - Camera.CFrame.Position).Magnitude)
+                        local nm = plr.Name; if flags.espRoleTags then nm = tagOf(role) .. " " .. nm end
+                        e.name.Text = nm; e.sub.Text = dist .. "m"; e.name.TextColor3 = col; e.sub.TextColor3 = col; e.bb.Enabled = true
+                    else e.bb.Enabled = false end
+                elseif espStore[plr] then espStore[plr].hl.Enabled = false; espStore[plr].bb.Enabled = false end
+            end
+        else
+            for p, e in pairs(espStore) do e.hl.Enabled = false; e.bb.Enabled = false end
+        end
+    end
+end)
+
+-- Box ESP
+local boxStore = {}
+task.spawn(function()
+    while task.wait(0.05) do
+        if flags.espBox then
+            for _, plr in ipairs(Mono.plrs) do
+                if plr ~= LocalPlayer and alive(plr) then
+                    if not boxStore[plr] then boxStore[plr] = {Mono.newLine(1), Mono.newLine(1), Mono.newLine(1), Mono.newLine(1)} end
+                    local hrp = getHRP(plr.Character); local v, on = Camera:WorldToViewportPoint(hrp.Position)
+                    if on then
+                        local size = 2500 / v.Z; local b = boxStore[plr]
+                        b[1].From, b[1].To = Vector2.new(v.X - size/2, v.Y - size/2), Vector2.new(v.X + size/2, v.Y - size/2)
+                        b[2].From, b[2].To = Vector2.new(v.X + size/2, v.Y - size/2), Vector2.new(v.X + size/2, v.Y + size/2)
+                        b[3].From, b[3].To = Vector2.new(v.X + size/2, v.Y + size/2), Vector2.new(v.X - size/2, v.Y + size/2)
+                        b[4].From, b[4].To = Vector2.new(v.X - size/2, v.Y + size/2), Vector2.new(v.X - size/2, v.Y - size/2)
+                        for i=1,4 do b[i].Color = espColor(roleOf(plr)); b[i].Visible = true end
+                    else for i=1,4 do boxStore[plr][i].Visible = false end end
+                end
+            end
+        else
+            if next(boxStore) then for p, b in pairs(boxStore) do for i=1,4 do b[i].Visible = false end end end
+        end
+    end
+end)
+
+-- ============================================
+-- COMBAT SYSTEM
+-- ============================================
+local function findWeapon(n)
+    local ch = LocalPlayer.Character; local bp = LocalPlayer:FindFirstChild("Backpack")
+    return (ch and ch:FindFirstChild(n)) or (bp and bp:FindFirstChild(n))
+end
+local function equip(tool)
+    local ch = LocalPlayer.Character; local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+    if tool and hum and tool.Parent ~= ch then pcall(function() hum:EquipTool(tool) end) end
+end
+local function getMurderer()
+    for _, plr in ipairs(Mono.plrs) do if plr ~= LocalPlayer and roleOf(plr) == "Murderer" then return plr end end
+end
+local function canAct()
+    local ch = LocalPlayer.Character
+    return ch and ch:FindFirstChild("Humanoid") and ch.Humanoid.Health > 0
+end
+
+local function updateTriggerbot()
+    if not flags.Triggerbot or not canAct() then return end
+    local char = LocalPlayer.Character; local gun, shootRemote
+    for _, tool in ipairs(char:GetChildren()) do if tool:IsA("Tool") and tool:FindFirstChild("Shoot") then gun = tool; shootRemote = tool.Shoot; break end end
+    if not gun or not shootRemote then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart"); local attachment = hrp and hrp:FindFirstChild("GunRaycastAttachment")
+    if not attachment then return end
+    local murder = getMurderer(); if not murder or not murder.Character then return end
+    local params = RaycastParams.new(); params.FilterType = Enum.RaycastFilterType.Exclude; params.FilterDescendantsInstances = {char, Camera}
+    local cameraRay = workspace:Raycast(Camera.CFrame.Position, Camera.CFrame.LookVector * 1000, params)
+    if cameraRay and cameraRay.Instance:IsDescendantOf(murder.Character) then
+        local gunRay = workspace:Raycast(attachment.WorldPosition, cameraRay.Position - attachment.WorldPosition, params)
+        if gunRay and gunRay.Instance:IsDescendantOf(murder.Character) then
+            local now = tick(); if now - lastShot >= 0.15 then lastShot = now; pcall(function() shootRemote:FireServer(attachment.WorldCFrame, CFrame.new(cameraRay.Position)) end) end
+        end
+    end
+end
+
+local function knifeKill(ev, tChar)
+    if not (ev and tChar) then return end
+    local ht = ev:FindFirstChild("HandleTouched"); local ks = ev:FindFirstChild("KnifeStabbed")
+    if ks then ks:FireServer() end
+    if ht then for _, pn in ipairs({"HumanoidRootPart", "UpperTorso", "Head"}) do local p = tChar:FindFirstChild(pn); if p then ht:FireServer(p); return end end end
+end
+
+local function snapShot(target)
+    if snapping then return false end
+    local gun = findWeapon("Gun"); local shoot = gun and gun:FindFirstChild("Shoot")
+    local myHrp = getHRP(LocalPlayer.Character); local tChar = target and target.Character
+    if not (gun and shoot and myHrp and tChar and canAct()) then return false end
+    snapping = true; local home = myHrp.CFrame
+    pcall(function()
+        equip(gun); task.wait(0.1)
+        local chest = (tChar:FindFirstChild("UpperTorso") or tChar:FindFirstChild("HumanoidRootPart")).Position
+        local t0 = os.clock()
+        while os.clock() - t0 < 0.15 do
+            local h = getHRP(LocalPlayer.Character)
+            if h and tChar.Parent then h.CFrame = CFrame.new(chest + Vector3.new(0, 5, 0), chest); h.AssemblyLinearVelocity = Vector3.zero end
+            RunService.Heartbeat:Wait()
+        end
+        local hrp = getHRP(LocalPlayer.Character); local att = hrp and hrp:FindFirstChild("GunRaycastAttachment")
+        if att then shoot:FireServer(att.WorldCFrame, CFrame.new(chest)); task.wait(0.1) end
+    end)
+    local h3 = getHRP(LocalPlayer.Character); if h3 then h3.CFrame = home end
+    snapping = false; return true
+end
+
+pcall(function()
+    local oldNamecall
+    oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+        if not checkcaller() and getnamecallmethod() == "FireServer" then
+            local nm = self.Name
+            if nm == "Shoot" or nm == "KnifeThrown" then
+                local target = nil
+                if flags.SilentAim then
+                    for _, p in ipairs(Mono.plrs) do if p ~= LocalPlayer and alive(p) and roleOf(p) == "Murderer" then target = p.Character:FindFirstChild("UpperTorso") or p.Character:FindFirstChild("HumanoidRootPart"); break end end
+                end
+                if target then local args = {...}; if #args >= 2 and typeof(args[2]) == "CFrame" then args[2] = CFrame.new(target.Position); return oldNamecall(self, table.unpack(args, 1, #args)) end end
+            end
+        end
+        return oldNamecall(self, ...)
+    end))
+end)
+
+RunService.Stepped:Connect(function()
+    if flags.Noclip then
+        local char = LocalPlayer.Character
+        if char then for _, p in ipairs(char:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end end
+    end
+    if flags.Fly and flyBV and flyBG then
+        local hrp = getHRP(LocalPlayer.Character)
+        if hrp then
+            local dir = Vector3.zero
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir += Camera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir -= Camera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir -= Camera.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir += Camera.CFrame.RightVector end
+            flyBV.Velocity = (dir.Magnitude > 0 and dir.Unit or Vector3.zero) * 60
+            flyBG.CFrame = Camera.CFrame
+        end
+    end
+end)
+
+RunService.RenderStepped:Connect(function() updateTriggerbot() end)
+
+task.spawn(function() while task.wait(0.1) do
+    if flags.AutoKill and canAct() then
+        local role = roleOf(LocalPlayer)
+        if role == "Murderer" then
+            local knife = findWeapon("Knife"); local ev = knife and knife:FindFirstChild("Events")
+            if ev then equip(knife); for _, p in ipairs(Mono.plrs) do if p ~= LocalPlayer and alive(p) then knifeKill(ev, p.Character) end end end
+        elseif isGunRole(role) then
+            local m = getMurderer(); if m and not snapping then snapShot(m) end
+        end
+    end
+end end)
+
+task.spawn(function() while task.wait(0.5) do
+    if flags.AutoGun and canAct() and not findWeapon("Gun") and roleOf(LocalPlayer) ~= "Murderer" then
+            local droppedGun
+            for _, obj in ipairs(workspace:GetChildren()) do if obj:IsA("BasePart") and obj.Name == "GunDrop" then droppedGun = obj break end end
+            local hrp = getHRP(LocalPlayer.Character)
+            if droppedGun and hrp then
+                if typeof(firetouchinterest) == "function" then pcall(function() firetouchinterest(hrp, droppedGun, 0); firetouchinterest(hrp, droppedGun, 1) end) end
+                if not findWeapon("Gun") then
+                    local original = hrp.CFrame
+                    for i=1, 3 do hrp.CFrame = CFrame.new(droppedGun.Position); if typeof(firetouchinterest) == "function" then pcall(function() firetouchinterest(hrp, droppedGun, 0); firetouchinterest(hrp, droppedGun, 1) end) end; RunService.Heartbeat:Wait() end
+                    hrp.CFrame = original
+                end
+            end
+        end
+    end end)
+
+-- LOG FINAL
+print("[LOG 4] Todos os sistemas carregados com sucesso!")
+
+WindUI:Notify({ Title = "MM2 Premium", Content = "Script Completo Carregado!", Duration = 5, Icon = "sparkles" })
