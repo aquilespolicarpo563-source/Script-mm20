@@ -13,14 +13,15 @@ local Camera = workspace.CurrentCamera
 local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
 
+-- TUDO DESATIVADO POR PADRÃO PARA NÃO BUGAR
 local flags = {
     -- Combat
-    Triggerbot = true, TriggerCooldown = 0.15,
+    Triggerbot = false, TriggerCooldown = 0.15,
     AutoKill = false, Aimbot = false, SilentAim = false, ShowFov = false,
     GunWalls = false, KnifeWalls = false, AutoGun = false,
     
-    -- Visuals
-    espNames = true, espBox = false, espChams = false, espRoleTags = true, 
+    -- Visuals (ESPs)
+    espNames = false, espBox = false, espChams = false, espRoleTags = false, 
     espMaxDist = 0, espLimit = 250, coinEsp = false, fullbright = false
 }
 
@@ -44,7 +45,7 @@ local TabVisuals = Window:Tab({ Title = "Visuals", Icon = "eye" })
 
 -- === ABA COMBAT ===
 TabCombat:Section({ Title = "Triggerbot Original" })
-TabCombat:Toggle({ Title = "Ativar Triggerbot", Default = true, Callback = function(v) flags.Triggerbot = v end })
+TabCombat:Toggle({ Title = "Ativar Triggerbot", Default = false, Callback = function(v) flags.Triggerbot = v end })
 
 TabCombat:Section({ Title = "Combat" })
 TabCombat:Toggle({ Title = "Auto Kill", Default = false, Callback = function(v) flags.AutoKill = v end })
@@ -57,10 +58,10 @@ TabCombat:Toggle({ Title = "Auto Grab Gun", Default = false, Callback = function
 
 -- === ABA VISUALS ===
 TabVisuals:Section({ Title = "Player ESP" })
-TabVisuals:Toggle({ Title = "Nametag ESP", Default = true, Callback = function(v) flags.espNames = v end })
-TabVisuals:Toggle({ Title = "Box ESP", Default = false, Callback = function(v) flags.espBox = v end })
+TabVisuals:Toggle({ Title = "Nametag ESP (Nomes)", Default = false, Callback = function(v) flags.espNames = v end })
+TabVisuals:Toggle({ Title = "Box ESP (Caixas 2D)", Default = false, Callback = function(v) flags.espBox = v end })
 TabVisuals:Toggle({ Title = "Chams (Colorido)", Default = false, Callback = function(v) flags.espChams = v end })
-TabVisuals:Toggle({ Title = "Role Tags", Default = true, Callback = function(v) flags.espRoleTags = v end })
+TabVisuals:Toggle({ Title = "Role Tags [M] [S] [I]", Default = false, Callback = function(v) flags.espRoleTags = v end })
 
 TabVisuals:Section({ Title = "Mundo" })
 TabVisuals:Toggle({ Title = "Coin ESP", Default = false, Callback = function(v) flags.coinEsp = v end })
@@ -80,7 +81,6 @@ local Mono = { plrs = {}, bodyCache = setmetatable({}, {__mode = "k"}), hasDrawi
 local EspGui = Instance.new("ScreenGui", game:GetService("CoreGui"))
 EspGui.Name = "MonoESP"
 
--- Blindagem do Drawing (Evita crash no celular)
 pcall(function()
     local testLine = Drawing.new("Line")
     testLine:Remove()
@@ -124,31 +124,27 @@ local function alive(plr)
     return ch and h and h.Health > 0 and getHRP(ch) ~= nil
 end
 
--- Nametags (Cards)
+-- Nametags (Visual Limpo)
 local espStore = {}
 local function ensureEsp(plr)
     if espStore[plr] then return espStore[plr] end
     local e = {}
+    
     e.hl = Instance.new("Highlight", EspGui)
     e.hl.FillTransparency = 1; e.hl.OutlineTransparency = 0; e.hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop; e.hl.Enabled = false
     
     e.bb = Instance.new("BillboardGui", EspGui)
-    e.bb.Size = UDim2.fromOffset(180, 35); e.bb.AlwaysOnTop = true; e.bb.Enabled = false; e.bb.StudsOffsetWorldSpace = Vector3.new(0, 3, 0)
+    e.bb.Size = UDim2.fromOffset(180, 30); e.bb.AlwaysOnTop = true; e.bb.Enabled = false; e.bb.StudsOffsetWorldSpace = Vector3.new(0, 3, 0)
     
-    e.card = Instance.new("Frame", e.bb)
-    e.card.AnchorPoint = Vector2.new(0.5, 1); e.card.Position = UDim2.fromScale(0.5, 1)
-    e.card.Size = UDim2.fromScale(1, 1); e.card.BackgroundColor3 = Color3.fromRGB(16, 16, 18)
-    e.card.BackgroundTransparency = 0.3; e.card.BorderSizePixel = 0
-    Instance.new("UICorner", e.card).CornerRadius = UDim.new(0, 6)
+    e.name = Instance.new("TextLabel", e.bb)
+    e.name.BackgroundTransparency = 1; e.name.Size = UDim2.new(1, 0, 0.5, 0)
+    e.name.Font = Enum.Font.GothamBold; e.name.TextSize = 13; e.name.TextStrokeTransparency = 0.5
+    e.name.TextXAlignment = Enum.TextXAlignment.Center
     
-    e.edge = Instance.new("UIStroke", e.card); e.edge.Transparency = 0.75
-    e.name = Instance.new("TextLabel", e.card)
-    e.name.BackgroundTransparency = 1; e.name.Position = UDim2.new(0, 10, 0.5, 0); e.name.Size = UDim2.new(1, -90, 0, 15)
-    e.name.Font = Enum.Font.GothamBold; e.name.TextSize = 12; e.name.TextXAlignment = Enum.TextXAlignment.Left
-    
-    e.sub = Instance.new("TextLabel", e.card)
-    e.sub.BackgroundTransparency = 1; e.sub.AnchorPoint = Vector2.new(1, 0.5); e.sub.Position = UDim2.new(1, -10, 0.5, 0)
-    e.sub.Size = UDim2.fromOffset(60, 14); e.sub.Font = Enum.Font.Gotham; e.sub.TextSize = 11; e.sub.TextXAlignment = Enum.TextXAlignment.Right
+    e.sub = Instance.new("TextLabel", e.bb)
+    e.sub.BackgroundTransparency = 1; e.sub.Position = UDim2.new(0, 0, 0.5, 0); e.sub.Size = UDim2.new(1, 0, 0.5, 0)
+    e.sub.Font = Enum.Font.Gotham; e.sub.TextSize = 11; e.sub.TextStrokeTransparency = 0.5
+    e.sub.TextXAlignment = Enum.TextXAlignment.Center
     
     espStore[plr] = e
     return e
@@ -161,7 +157,7 @@ end
 local function tagOf(role) return role == "Murderer" and "[M]" or isGunRole(role) and "[S]" or "[I]" end
 
 -- ============================================
--- THREAD DO ESP (Otimizada p/ Celular)
+-- THREAD DO ESP (Segura)
 -- ============================================
 task.spawn(function()
     while task.wait(0.1) do
@@ -182,18 +178,23 @@ task.spawn(function()
                         local nm = plr.Name
                         if flags.espRoleTags then nm = tagOf(role) .. " " .. nm end
                         e.name.Text = nm; e.sub.Text = dist .. "m"
-                        e.name.TextColor3 = col; e.edge.Color = col
-                        e.bb.Enabled = (flags.espMaxDist <= 0 or dist <= flags.espMaxDist)
+                        e.name.TextColor3 = col; e.sub.TextColor3 = col
+                        e.bb.Enabled = true
                     else e.bb.Enabled = false end
                 elseif espStore[plr] then
                     espStore[plr].hl.Enabled = false; espStore[plr].bb.Enabled = false
                 end
             end
+        else
+            -- Desliga tudo se os módulos estiverem off
+            for p, e in pairs(espStore) do
+                e.hl.Enabled = false; e.bb.Enabled = false
+            end
         end
     end
 end)
 
--- Box ESP
+-- Box ESP (Com checagem de segurança)
 local boxStore = {}
 task.spawn(function()
     while task.wait(0.05) do
@@ -212,6 +213,13 @@ task.spawn(function()
                         b[4].From, b[4].To = Vector2.new(v.X - size/2, v.Y + size/2), Vector2.new(v.X - size/2, v.Y - size/2)
                         for i=1,4 do b[i].Color = espColor(roleOf(plr)); b[i].Visible = true end
                     else for i=1,4 do boxStore[plr][i].Visible = false end end
+                end
+            end
+        else
+            -- Desliga as linhas se o Box ESP estiver off
+            if next(boxStore) then
+                for p, b in pairs(boxStore) do
+                    for i=1,4 do b[i].Visible = false end
                 end
             end
         end
@@ -237,7 +245,7 @@ local function canAct()
     return ch and ch:FindFirstChild("Humanoid") and ch.Humanoid.Health > 0
 end
 
--- Triggerbot (Anti-Wallbang)
+-- Triggerbot
 local function updateTriggerbot()
     if not flags.Triggerbot or not canAct() then return end
     local char = LocalPlayer.Character
@@ -269,7 +277,7 @@ local function updateTriggerbot()
     end
 end
 
--- Auto Kill & SnapShot
+-- Auto Kill
 local function knifeKill(ev, tChar)
     if not (ev and tChar) then return end
     local ht = ev:FindFirstChild("HandleTouched"); local ks = ev:FindFirstChild("KnifeStabbed")
