@@ -1,8 +1,22 @@
 -- ============================================
--- MM2 PREMIUM HUB (Completo + Mobile + Mono)
+-- MM2 PREMIUM HUB (Com Logs de Debug)
 -- ============================================
 
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+-- LOG 1
+print("[LOG 1] Iniciando o script...")
+
+-- Carregando WindUI com proteção (pcall)
+local sucesso, WindUI = pcall(function()
+    return loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/download/1.6.41/main.lua"))()
+end)
+
+if not sucesso or not WindUI then
+    warn("[ERRO FATAL] Não foi possível carregar a biblioteca WindUI. Verifique sua internet.")
+    return
+end
+
+-- LOG 2
+print("[LOG 2] WindUI carregada com sucesso!")
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -24,7 +38,7 @@ local snapping = false
 local flyBV, flyBG
 
 -- ============================================
--- MENU WINDUI (ABAS EXPANDIDAS)
+-- MENU WINDUI
 -- ============================================
 local Window = WindUI:CreateWindow({
     Title = "MM2 Premium", 
@@ -33,6 +47,9 @@ local Window = WindUI:CreateWindow({
     Theme = "Dark", 
     Folder = "MM2Premium"
 })
+
+-- LOG 3
+print("[LOG 3] Janela criada!")
 
 local TabCombat = Window:Tab({ Title = "Combat", Icon = "crosshair" })
 local TabVisuals = Window:Tab({ Title = "Visuals", Icon = "eye" })
@@ -67,11 +84,8 @@ TabVisuals:Section({ Title = "Mundo" })
 TabVisuals:Toggle({ Title = "Coin ESP", Default = false, Callback = function(v) flags.coinEsp = v end })
 TabVisuals:Toggle({ Title = "Fullbright", Default = false, Callback = function(v) 
     flags.fullbright = v
-    if v then
-        pcall(function() Lighting.Brightness = 3; Lighting.ClockTime = 14; Lighting.Ambient = Color3.new(1,1,1) end)
-    else
-        pcall(function() Lighting.Brightness = 1; Lighting.Ambient = Color3.new(0.5,0.5,0.5) end)
-    end
+    if v then pcall(function() Lighting.Brightness = 3; Lighting.ClockTime = 14; Lighting.Ambient = Color3.new(1,1,1) end)
+    else pcall(function() Lighting.Brightness = 1; Lighting.Ambient = Color3.new(0.5,0.5,0.5) end) end
 end })
 
 -- ============================================
@@ -274,7 +288,6 @@ local function canAct()
     return ch and ch:FindFirstChild("Humanoid") and ch.Humanoid.Health > 0
 end
 
--- Triggerbot
 local function updateTriggerbot()
     if not flags.Triggerbot or not canAct() then return end
     local char = LocalPlayer.Character; local gun, shootRemote
@@ -293,7 +306,6 @@ local function updateTriggerbot()
     end
 end
 
--- Auto Kill
 local function knifeKill(ev, tChar)
     if not (ev and tChar) then return end
     local ht = ev:FindFirstChild("HandleTouched"); local ks = ev:FindFirstChild("KnifeStabbed")
@@ -323,7 +335,6 @@ local function snapShot(target)
     snapping = false; return true
 end
 
--- Hook (Silent Aim)
 pcall(function()
     local oldNamecall
     oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
@@ -341,7 +352,6 @@ pcall(function()
     end))
 end)
 
--- Noclip e Fly Loop
 RunService.Stepped:Connect(function()
     if flags.Noclip then
         local char = LocalPlayer.Character
@@ -361,7 +371,6 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- Loops de Combate
 RunService.RenderStepped:Connect(function() updateTriggerbot() end)
 
 task.spawn(function() while task.wait(0.1) do
@@ -377,7 +386,4 @@ task.spawn(function() while task.wait(0.1) do
 end end)
 
 task.spawn(function() while task.wait(0.5) do
-    if flags.AutoGun and canAct() and not findWeapon("Gun") and roleOf(LocalPlayer) ~= "Murderer" then
-        local droppedGun
-        for _, obj in ipairs(workspace:GetChildren()) do if obj:IsA("BasePart") and obj.Name == "GunDrop" then droppedGun = obj break end end
-   
+    if flags.AutoGun and canA
